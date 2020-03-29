@@ -1,3 +1,10 @@
+FFmpeg static build for Jellyfin for better music streaming
+==================
+
+The main difference between this and jellyfin-ffmpeg is that it replaces the default "aac" encoder with "libfdk\_aac". The default aac encoder in ffmpeg produces suboptimal results on many samples (especially ones with a lot of higher-frequency components, like Anime songs), resulting in a lot of very noticeable distortion.
+
+You can run build script in this repository, which produces a static `ffmpeg` binary. It can then be placed on a Jellyfin server, which can be instructed to use the new ffmpeg binary by setting `FFmpeg path` in Admin Dashboard -> Playback.
+
 FFmpeg static build
 ===================
 
