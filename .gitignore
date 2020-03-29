@@ -3,3 +3,5 @@ target/
 *.swp
 bin/
 dl/
+out/
+out*/

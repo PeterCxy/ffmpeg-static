@@ -103,8 +103,8 @@ download \
   "https://github.com/madler/zlib/archive/"
 
 download \
+  "x264-snapshot-20191217-2245.tar.bz2" \
   "last_x264.tar.bz2" \
-  "" \
   "nil" \
   "http://download.videolan.org/pub/videolan/x264/snapshots/"
 
@@ -212,9 +212,9 @@ download \
   "https://github.com/xiph/speex/archive/"
 
 download \
-  "n4.0.tar.gz" \
-  "ffmpeg4.0.tar.gz" \
-  "4749a5e56f31e7ccebd3f9924972220f" \
+  "n4.2.2.tar.gz" \
+  "ffmpeg4.2.2.tar.gz" \
+  "nil" \
   "https://github.com/FFmpeg/FFmpeg/archive"
 
 [ $download_only -eq 1 ] && exit 0
@@ -415,6 +415,13 @@ make install
 echo "*** Building FFmpeg ***"
 cd $BUILD_DIR/FFmpeg*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
+
+# Force replace aac with libfdk_aac
+sed -i "s/\"aac\"/\"aac_orig\"/g" libavcodec/aacenc.c
+sed -i "s/\"libfdk_aac\"/\"aac\"/g" libavcodec/libfdk-aacenc.c
+
+# Apply jellyfin patches
+patch -p1 -N < /ffmpeg-static/patches/0001_fix-segment-muxer.patch
 
 if [ "$platform" = "linux" ]; then
   [ ! -f config.status ] && PATH="$BIN_DIR:$PATH" \
