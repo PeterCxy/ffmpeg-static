@@ -91,6 +91,24 @@ cd $BUILD_DIR
   "http://www.nasm.us/pub/nasm/releasebuilds/2.13.01/"
 
 download \
+  "libpciaccess-0.16.tar.bz2" \
+  "" \
+  "nil" \
+  "https://xorg.freedesktop.org/archive/individual/lib/"
+
+download \
+  "drm-libdrm-2.4.100.tar.gz" \
+  "" \
+  "nil" \
+  "https://gitlab.freedesktop.org/mesa/drm/-/archive/libdrm-2.4.100/"
+
+download \
+  "libva-2.6.1.tar.bz2" \
+  "" \
+  "nil" \
+  "https://github.com/intel/libva/releases/download/2.6.1/"
+
+download \
   "OpenSSL_1_0_2o.tar.gz" \
   "" \
   "5b5c050f83feaa0c784070637fac3af4" \
@@ -238,6 +256,26 @@ if [ $is_x86 -eq 1 ]; then
     make -j $jval
     make install
 fi
+
+echo "*** Building libpciaccess ***"
+cd $BUILD_DIR/libpciaccess*
+[ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
+PATH="$BIN_DIR:$PATH" ./configure --prefix=$TARGET_DIR --bindir=$BIN_DIR
+make -j $jval
+make install
+
+echo "*** Building libdrm ***"
+cd $BUILD_DIR/drm-libdrm*
+[ $rebuild -eq 1 ] && rm -rf builddir || true
+PATH="$BIN_DIR:$PATH" meson --prefix=$TARGET_DIR builddir/
+PATH="$BIN_DIR:$PATH" ninja -C builddir/ install
+
+echo "*** Building libva ***"
+cd $BUILD_DIR/libva*
+[ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
+PATH="$BIN_DIR:$PATH" ./configure --prefix=$TARGET_DIR --bindir=$BIN_DIR --enable-drm=yes --enable-x11=no --enable-glx=no --enable-wayland=no
+PATH="$BIN_DIR:$PATH" make -j $jval
+make install
 
 echo "*** Building OpenSSL ***"
 cd $BUILD_DIR/openssl*
@@ -423,15 +461,21 @@ sed -i "s/\"libfdk_aac\"/\"aac\"/g" libavcodec/libfdk-aacenc.c
 # Apply jellyfin patches
 patch -p1 -N < /ffmpeg-static/patches/0001_fix-segment-muxer.patch
 
+# Apply my patches
+patch -p1 -N < /ffmpeg-static/patches/configure-force-pass-vaapi-and-ignore-default-libs-because-we-need-to-dynamically-link-it-only.patch
+
+# Remove -lm dependency from libass.pc because we need to dynamic link libm
+sed -i "s/\-lm//g" /ffmpeg-static/target/lib/pkgconfig/libass.pc
+
 if [ "$platform" = "linux" ]; then
   [ ! -f config.status ] && PATH="$BIN_DIR:$PATH" \
-  PKG_CONFIG_PATH="$TARGET_DIR/lib/pkgconfig" ./configure \
+  PKG_CONFIG_PATH="$TARGET_DIR/lib/pkgconfig:$TARGET_DIR/lib/x86_64-linux-gnu/pkgconfig" ./configure \
     --prefix="$TARGET_DIR" \
-    --pkg-config-flags="--static" \
+    --pkg-config-flags="" \
     --extra-cflags="-I$TARGET_DIR/include" \
     --extra-ldflags="-L$TARGET_DIR/lib" \
-    --extra-libs="-lpthread -lm -lz" \
-    --extra-ldexeflags="-static" \
+    --extra-libs="-lvorbis -logg -lexpat -lpng16 -lstdc++ -Wl,-Bdynamic -ldl -lpthread -lm -lz -lc -lva -lva-drm" \
+    --extra-ldexeflags="-static-libgcc -Wl,-Bstatic" \
     --bindir="$BIN_DIR" \
     --enable-pic \
     --enable-ffplay \
@@ -444,8 +488,6 @@ if [ "$platform" = "linux" ]; then
     --enable-libfdk-aac \
     --enable-libfreetype \
     --enable-libmp3lame \
-    --enable-libopencore-amrnb \
-    --enable-libopencore-amrwb \
     --enable-libopenjpeg \
     --enable-libopus \
     --enable-librtmp \
@@ -453,7 +495,6 @@ if [ "$platform" = "linux" ]; then
     --enable-libspeex \
     --enable-libtheora \
     --enable-libvidstab \
-    --enable-libvo-amrwbenc \
     --enable-libvorbis \
     --enable-libvpx \
     --enable-libwebp \
@@ -462,7 +503,12 @@ if [ "$platform" = "linux" ]; then
     --enable-libxvid \
     --enable-libzimg \
     --enable-nonfree \
-    --enable-openssl
+    --enable-openssl \
+    --enable-vaapi \
+    --disable-libxcb \
+    --disable-xlib \
+    --disable-lzma \
+    --disable-alsa
 elif [ "$platform" = "darwin" ]; then
   [ ! -f config.status ] && PATH="$BIN_DIR:$PATH" \
   PKG_CONFIG_PATH="${TARGET_DIR}/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/local/Cellar/openssl/1.0.2o_1/lib/pkgconfig" ./configure \

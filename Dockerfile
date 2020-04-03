@@ -42,6 +42,8 @@ RUN apt-get update && apt-get install -y \
   tar \
   texi2html \
   yasm \
+  meson \
+  ninja-build \
   && rm -rf /var/lib/apt/lists/*
 
 # Copy the build scripts.
