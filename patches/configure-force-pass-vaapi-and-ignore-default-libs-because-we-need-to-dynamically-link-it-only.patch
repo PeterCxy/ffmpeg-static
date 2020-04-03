@@ -4,7 +4,7 @@
      test_cmd $pkg_config --exists --print-errors $pkg_version || return
      pkg_cflags=$($pkg_config --cflags $pkg_config_flags $pkg)
      pkg_libs=$($pkg_config --libs $pkg_config_flags $pkg)
-+    if [ $name = 'vaapi'  ]; then
++    if [ $name = 'vaapi' ] || [ $name = 'vaapi_drm' ]; then
 +        enable $name &&
 +            set_sanitized "${name}_cflags" $pkg_cflags &&
 +	    set_sanitized "${name}_extralibs" "" # Anything
