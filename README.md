@@ -1,9 +1,31 @@
-FFmpeg static build for Jellyfin for better music streaming
+FFmpeg (mostly) static build for Jellyfin for better music streaming
 ==================
 
 The main difference between this and jellyfin-ffmpeg is that it replaces the default "aac" encoder with "libfdk\_aac". The default aac encoder in ffmpeg produces suboptimal results on many samples (especially ones with a lot of higher-frequency components, like Anime songs), resulting in a lot of very noticeable distortion.
 
 You can run build script in this repository, which produces a static `ffmpeg` binary. It can then be placed on a Jellyfin server, which can be instructed to use the new ffmpeg binary by setting `FFmpeg path` in Admin Dashboard -> Playback.
+
+This build is mostly static, but with the following library dynamically linked:
+
+```
+[peter@peter-pc ffmpeg-static]$ ldd out/ffmpeg
+        linux-vdso.so.1 (0x00007ffd983f4000)
+        libdl.so.2 => /usr/lib/libdl.so.2 (0x00007f42a23db000)
+        libpthread.so.0 => /usr/lib/libpthread.so.0 (0x00007f42a23b9000)
+        libm.so.6 => /usr/lib/libm.so.6 (0x00007f42a2273000)
+        libmvec.so.1 => /usr/lib/libmvec.so.1 (0x00007f42a2247000)
+        libc.so.6 => /usr/lib/libc.so.6 (0x00007f42a2081000)
+        /lib64/ld-linux-x86-64.so.2 => /usr/lib64/ld-linux-x86-64.so.2 (0x00007f42a56b3000)
+        libva.so.2 => /usr/lib/libva.so.2 (0x00007f42a205c000)
+        libva-drm.so.2 => /usr/lib/libva-drm.so.2 (0x00007f42a2055000)
+        libdrm.so.2 => /usr/lib/libdrm.so.2 (0x00007f42a2040000)
+```
+
+This is because in order to support `VA-API`, the library `libva` must be dynamically linked, and thus we cannot link shared dependencies like `libc`, `libm` either. A lot of hacking is done to make the build system actually work with such strange configuration:
+
+1. `-Wl,-Bstatic` is used at the very beginning of LD flags (`--extra-ldexeflags`) instead of `-static` to statically link most of the libraries; this option allows us to later use `-Wl,-Bdynamic` to link some other libraries dynamically.
+2. The `--static` option of `pkg-config` is no longer usable because that will pull in things like `libm` as static dependencies; instead, everything must be handled manually (i.e. all libraries that are in `--static` output but not in non-static must be added manually to `--extra-libs`, while those that cannot be linked statically must be placed after `-Wl,-Bdynamic`).
+3. A patch in `configure` is needed to exclude `-lva -lva-drm` from its automatically-generated LD flags; this is because the `-Wl,-Bdynamic` only occurs at the end of the argument list (at least this is how options in `--extra-libs` behave on my machine), and since libva can only be linked dynamically, we need to manually place it after that flag.
 
 FFmpeg static build
 ===================
